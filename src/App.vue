@@ -1,7 +1,11 @@
-<script setup lang="ts"></script>
-
 <template>
-  <h1>UzBarber</h1>
+  <div id="app" class="min-h-screen bg-gray-50 font-nunito">
+    <router-view />
+  </div>
 </template>
 
-<style scoped></style>
+<script setup>
+</script>
+
+<style scoped>
+</style>
