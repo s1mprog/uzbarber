@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import Map from '@/components/Map.vue' 
+import Map from '@/components/Map.vue'
 import type { Master } from '@/types/master'
+import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 // Данные мастеров (замени на реальные из API/Pinia)
 const masters = ref<Master[]>([
   {
