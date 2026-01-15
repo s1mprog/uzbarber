@@ -5,27 +5,24 @@ const route = useRoute()
 const router = useRouter()
 
 const items = [
-  { name: "MasterCalendar", label: "Calendar", path: "/master/calendar" },
-  { name: "MasterToday", label: "Today", path: "/master/today" },
-  { name: "MasterProfile", label: "Profile", path: "/master/profile" }
+  { name: "AdminUsers", label: "Users", path: "/admin/users" },
+  { name: "AdminOrders", label: "Orders", path: "/admin/orders" }
 ]
 
 function go(path: string) {
   router.push(path)
 }
-
-function isActive(itemName: string) {
-  return route.name === itemName
+function isActive(name: string) {
+  return route.name === name
 }
 </script>
 
 <template>
-  <div class="sticky bottom-0 bg-white border-t">
-    <div class="grid grid-cols-3 gap-2 p-2">
+  <div class="fixed bottom-0 left-0 right-0 z-50 bg-white border-t">
+    <div class="grid grid-cols-2 gap-2 p-2">
       <button
         v-for="it in items"
         :key="it.name"
-        type="button"
         class="rounded-xl py-3 text-sm transition"
         :class="isActive(it.name) ? 'bg-black text-white' : 'bg-gray-100 text-gray-700'"
         @click="go(it.path)"

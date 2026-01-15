@@ -4,7 +4,7 @@
 </script>
 
 <template>
-	<div>ClientHome hello world</div>
+	<div>ClientHome</div>
 	<ClientMap />
 </template>
 

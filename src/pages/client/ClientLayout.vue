@@ -1,12 +1,12 @@
 <script setup>
-import ClientFooter from './ClientFooter/ClientFooter.vue'
+// import ClientFooter from './ClientFooter/ClientFooter.vue'
 </script>
 
 <template>
   <div class="client-layout">
     <router-view />
     
-    <ClientFooter />
+    <!-- <ClientFooter /> -->
   </div>
 </template>
 
