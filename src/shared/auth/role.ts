@@ -70,12 +70,21 @@ export function resolveRoleMock(userId?: number): UserRole {
  * Главная функция для фронта:
  * определяем роль из initData (с fallback на client)
  */
-export function getUserRole(): UserRole {
-  const initData = getTelegramInitData()
-  const user = parseTelegramUser(initData)
-  const userId = user?.id
+export function getTelegramUser(): TelegramUser | null {
+  // ✅ 1) Самый надёжный источник внутри Telegram
+  const unsafeUser = (window as any)?.Telegram?.WebApp?.initDataUnsafe?.user
+  if (unsafeUser && typeof unsafeUser === "object") return unsafeUser as TelegramUser
 
-  // Пока нет backend — используем мок.
-  // Позже сделаешь: return authStore.role (полученную с API)
+  // ✅ 2) Fallback: парсим initData строку
+  const initData = getTelegramInitData()
+  return parseTelegramUser(initData)
+}
+
+export function getUserRole(): UserRole {
+  const user = getTelegramUser()
+
+  // иногда id может прийти строкой — нормализуем
+  const userId = typeof user?.id === "string" ? Number(user.id) : user?.id
+  console.log("userId", userId)
   return resolveRoleMock(userId)
 }
