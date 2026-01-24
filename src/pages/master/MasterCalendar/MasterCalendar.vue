@@ -1,82 +1,171 @@
 <script setup lang="ts">
-import { computed, ref } from "vue"
+import { computed, onMounted, ref, watch } from "vue"
 import MonthCalendar from "@/components/MonthCalendar.vue"
-import { MOCK_ORDERS, statusBadgeClass, statusLabel, type MasterOrder } from "@/api/mock/masterOrders"
-import { mockGetMonthLoad, type DayLoad } from "@/api/mock/availability"
+import { getMasterOrders, getMasterIdByTelegramId } from "@/api/master"
+import { getMonthLoad } from "@/api/client"
+import { getTelegramUser } from "@/shared/auth/role"
+import { statusBadgeClass, statusLabel, type Order } from "@/types/order"
+import type { DayLoad } from "@/types/availability"
 
-const orders = ref<MasterOrder[]>([...MOCK_ORDERS])
+const selectedDate = ref("")
+const orders = ref<Order[]>([])
+const monthLoad = ref<Record<string, DayLoad>>({})
+const loading = ref(true)
+const error = ref("")
+const masterId = ref<number | null>(null)
 
-const now = new Date()
-const calYear = ref(now.getFullYear())
-const calMonth = ref(now.getMonth() + 1)
+const today = new Date()
+const currentYear = ref(today.getFullYear())
+const currentMonth = ref(today.getMonth() + 1) // 1..12
 
-const loads = ref<Record<string, DayLoad>>({})
-const selectedDate = ref<string | null>(null)
+const pad = (n: number) => String(n).padStart(2, "0")
+const todayKey = `${currentYear.value}-${pad(currentMonth.value)}-${pad(today.getDate())}`
 
-async function loadMonth() {
-  // masterId можно потом брать из auth/me
-  loads.value = await mockGetMonthLoad({ masterId: 1, year: calYear.value, month: calMonth.value })
-}
-loadMonth()
-
-function prevMonth() {
-  if (calMonth.value === 1) {
-    calMonth.value = 12
-    calYear.value -= 1
-  } else calMonth.value -= 1
-  loadMonth()
-}
-
-function nextMonth() {
-  if (calMonth.value === 12) {
-    calMonth.value = 1
-    calYear.value += 1
-  } else calMonth.value += 1
-  loadMonth()
+// Инициализируем selectedDate = сегодня
+if (!selectedDate.value) {
+  selectedDate.value = todayKey
 }
 
 const dayOrders = computed(() => {
   if (!selectedDate.value) return []
   return orders.value
-    .filter((o) => o.date === selectedDate.value)
-    .sort((a, b) => a.time.localeCompare(b.time))
+    .filter(o => o.bookingDate === selectedDate.value)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime))
+})
+
+async function loadData() {
+  try {
+    loading.value = true
+    error.value = ""
+    
+    // Получаем master_id
+    const tgUser = getTelegramUser()
+    if (!tgUser?.id) {
+      error.value = "Telegram user not found"
+      return
+    }
+    
+    const mId = await getMasterIdByTelegramId(tgUser.id)
+    if (!mId) {
+      error.value = "Master profile not found"
+      return
+    }
+    
+    masterId.value = mId
+    
+    // Загружаем заказы за весь месяц
+    orders.value = await getMasterOrders({ masterId: mId })
+    
+    // Загружаем загрузку месяца
+    monthLoad.value = await getMonthLoad({
+      masterId: mId,
+      year: currentYear.value,
+      month: currentMonth.value
+    })
+    
+    console.log('Loaded orders:', orders.value.length)
+    console.log('Month load:', monthLoad.value)
+    
+  } catch (err: any) {
+    console.error('Error loading data:', err)
+    error.value = 'Не удалось загрузить данные'
+  } finally {
+    loading.value = false
+  }
+}
+
+// Обработчик выбора дня - используем правильное название события
+function onDateSelect(dateKey: string) {
+  console.log('Date selected:', dateKey)
+  selectedDate.value = dateKey
+}
+
+function prevMonth() {
+  if (currentMonth.value === 1) {
+    currentMonth.value = 12
+    currentYear.value--
+  } else {
+    currentMonth.value--
+  }
+}
+
+function nextMonth() {
+  if (currentMonth.value === 12) {
+    currentMonth.value = 1
+    currentYear.value++
+  } else {
+    currentMonth.value++
+  }
+}
+
+// Перезагружаем данные при смене месяца
+watch([currentYear, currentMonth], () => {
+  loadData()
+})
+
+onMounted(() => {
+  loadData()
 })
 </script>
 
 <template>
   <div class="p-4 space-y-4">
-    <h1 class="text-xl font-bold">Календарь</h1>
+    <h1 class="text-xl font-bold">Календарь заказов</h1>
 
-    <MonthCalendar
-      :year="calYear"
-      :month="calMonth"
-      v-model="selectedDate"
-      :loads="loads"
-      @prev="prevMonth"
-      @next="nextMonth"
-    />
+    <!-- Error -->
+    <div v-if="error" class="rounded-2xl bg-red-50 p-4 text-red-600 text-sm">
+      {{ error }}
+    </div>
 
-    <div class="rounded-2xl bg-white p-4 shadow">
-      <div class="font-semibold mb-2">Заказы на день: {{ selectedDate || "—" }}</div>
+    <!-- Loading -->
+    <div v-if="loading" class="text-center py-8">
+      <p class="text-gray-500">Загрузка календаря...</p>
+    </div>
 
-      <div v-if="!selectedDate" class="text-sm text-gray-500">Выберите день в календаре</div>
+    <template v-else>
+      <!-- Calendar - используем правильные пропсы и события -->
+      <MonthCalendar
+        v-model="selectedDate"
+        :year="currentYear"
+        :month="currentMonth"
+        :loads="monthLoad"
+        @select="onDateSelect"
+        @prev="prevMonth"
+        @next="nextMonth"
+      />
 
-      <div v-else-if="dayOrders.length === 0" class="text-sm text-gray-500">
-        На этот день заказов нет.
-      </div>
+      <!-- Orders for selected day -->
+      <div class="rounded-2xl bg-white p-4 shadow">
+        <h2 class="font-semibold mb-3">
+          {{ selectedDate ? new Date(selectedDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }) : 'Выберите день' }}
+        </h2>
 
-      <div v-else class="space-y-2">	
-        <div v-for="o in dayOrders" :key="o.id" class="border rounded-xl p-3">
-          <div class="flex items-center justify-between">
-            <div class="font-semibold">{{ o.time }} — {{ o.clientName }}</div>
-            <span class="text-xs px-2 py-1 rounded-full" :class="statusBadgeClass(o.status)">
-              {{ statusLabel(o.status) }}
-            </span>
+        <div v-if="dayOrders.length === 0" class="text-gray-500 text-sm">
+          На этот день заказов нет
+        </div>
+
+        <div v-else class="space-y-2">
+          <div
+            v-for="o in dayOrders"
+            :key="o.id"
+            class="border border-gray-200 rounded-xl p-3 space-y-1"
+          >
+            <div class="flex items-center justify-between">
+              <div class="font-semibold">{{ o.startTime }} — {{ o.clientName }}</div>
+              <span class="text-xs px-2 py-1 rounded-full" :class="statusBadgeClass(o.status)">
+                {{ statusLabel(o.status) }}
+              </span>
+            </div>
+            <div class="text-sm text-gray-600">{{ o.clientPhone }}</div>
+            <div v-if="o.comment" class="text-sm text-gray-700 bg-gray-50 p-2 rounded-lg">
+              💬 {{ o.comment }}
+            </div>
+            <div class="text-xs text-gray-500">
+              {{ o.durationMinutes }} мин • {{ o.price.toLocaleString() }} сум
+            </div>
           </div>
-          <div class="text-sm text-gray-600">{{ o.clientPhone }}</div>
-          <div v-if="o.comment" class="text-sm text-gray-700">Комментарий: {{ o.comment }}</div>
         </div>
       </div>
-    </div>
+    </template>
   </div>
 </template>

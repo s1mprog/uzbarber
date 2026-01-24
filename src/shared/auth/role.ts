@@ -1,5 +1,6 @@
-// src/auth/role.ts
-import { ACCESS } from "@/config/access"  
+// src/shared/auth/role.ts
+import { supabase } from '@/lib/supabase'
+
 export type UserRole = "client" | "master" | "admin"
 
 type TelegramUser = {
@@ -9,15 +10,12 @@ type TelegramUser = {
   last_name?: string
 }
 
-import.meta.env.VITE_TEST
-import.meta.env.VITE_TG_INIT_DATA
 /**
  * Возвращает Telegram initData строку.
  * В проде: window.Telegram.WebApp.initData
  * В деве: можно подменять через .env или localStorage
-*/
+ */
 export function getTelegramInitData(): string {
-  
   // 1) Реальное initData из Telegram Mini App
   const tgInitData = (window as any)?.Telegram?.WebApp?.initData
   if (typeof tgInitData === "string" && tgInitData.length > 0) return tgInitData
@@ -31,13 +29,10 @@ export function getTelegramInitData(): string {
   if (typeof ls === "string" && ls.length > 0) return ls
 
   return ""
-
 }
 
 /**
  * Достаёт user из initData (querystring), где user = JSON строка.
- * Важно: это "быстрый парсер" для фронта. В реальности подлинность initData
- * должен проверять backend, а фронт роли должен получать от API.
  */
 export function parseTelegramUser(initData: string): TelegramUser | null {
   if (!initData) return null
@@ -56,35 +51,94 @@ export function parseTelegramUser(initData: string): TelegramUser | null {
 }
 
 /**
- * Временная логика ролей (mock), пока нет backend.
- * Потом заменишь на запрос типа GET /me -> role.
- */
-
-export function resolveRoleMock(userId?: number): UserRole {
-  if (userId && ACCESS.adminIds.includes(userId)) return "admin"
-  if (userId && ACCESS.masterIds.includes(userId)) return "master"
-  return "client"
-}
-
-/**
- * Главная функция для фронта:
- * определяем роль из initData (с fallback на client)
+ * Получить Telegram user из WebApp
  */
 export function getTelegramUser(): TelegramUser | null {
-  // ✅ 1) Самый надёжный источник внутри Telegram
   const unsafeUser = (window as any)?.Telegram?.WebApp?.initDataUnsafe?.user
   if (unsafeUser && typeof unsafeUser === "object") return unsafeUser as TelegramUser
 
-  // ✅ 2) Fallback: парсим initData строку
+  // fallback: парсинг initData строки
   const initData = getTelegramInitData()
   return parseTelegramUser(initData)
 }
 
-export function getUserRole(): UserRole {
-  const user = getTelegramUser()
+// Кеш для роли пользователя
+let cachedRole: UserRole | null = null
+let cachedTelegramId: number | null = null
 
-  // иногда id может прийти строкой — нормализуем
-  const userId = typeof user?.id === "string" ? Number(user.id) : user?.id
-  console.log("userId", userId)
-  return resolveRoleMock(userId)
+/**
+ * Получить роль пользователя из базы данных
+ */
+export async function getUserRoleFromDB(telegramId: number): Promise<UserRole> {
+  try {
+    // Проверяем кеш
+    if (cachedTelegramId === telegramId && cachedRole) {
+      return cachedRole
+    }
+
+    // Получаем пользователя из базы
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('role')
+      .eq('telegram_id', telegramId)
+      .single()
+
+    if (error) {
+      console.error('Error fetching user role:', error)
+      return 'client' // По умолчанию клиент
+    }
+
+    if (user && user.role) {
+      // Кешируем роль
+      cachedRole = user.role as UserRole
+      cachedTelegramId = telegramId
+      return user.role as UserRole
+    }
+
+    return 'client'
+  } catch (err) {
+    console.error('Error in getUserRoleFromDB:', err)
+    return 'client'
+  }
+}
+
+/**
+ * Синхронная функция для получения роли (для router guards)
+ * Использует кешированное значение
+ */
+export function getUserRole(): UserRole {
+  // Если роль закеширована - возвращаем её
+  if (cachedRole) {
+    return cachedRole
+  }
+
+  // Иначе возвращаем client по умолчанию
+  // Роль будет обновлена асинхронно через initUserRole()
+  return 'client'
+}
+
+/**
+ * Инициализировать роль пользователя при старте приложения
+ * Эту функцию нужно вызвать в main.ts или App.vue
+ */
+export async function initUserRole(): Promise<UserRole> {
+  const tgUser = getTelegramUser()
+  
+  if (!tgUser?.id) {
+    console.warn('No Telegram user found')
+    cachedRole = 'client'
+    return 'client'
+  }
+
+  const role = await getUserRoleFromDB(tgUser.id)
+  console.log('User role initialized:', role)
+  return role
+}
+
+/**
+ * Очистить кеш роли (для logout или смены пользователя)
+ */
+export function clearRoleCache() {
+  cachedRole = null
+  cachedTelegramId = null
 }

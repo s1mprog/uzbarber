@@ -1,15 +1,14 @@
-<script setup>
-// import ClientFooter from './ClientFooter/ClientFooter.vue'
+<script setup lang="ts">
+import ClientFooter from "@/pages/client/ClientFooter/ClientFooter.vue"
 </script>
 
 <template>
-  <div class="client-layout">
-    <router-view />
-    
-    <!-- <ClientFooter /> -->
+  <div class="min-h-screen bg-gray-50">
+    <!-- ✅ запас снизу под футер (примерно 72px) -->
+    <div class="pb-20">
+      <router-view />
+    </div>
+
+    <ClientFooter />
   </div>
 </template>
-
-
-<style scoped>
-</style>

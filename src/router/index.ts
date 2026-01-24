@@ -15,8 +15,7 @@ import MasterHome from "@/pages/master/MasterHome/MasterHome.vue"
 
 import AdminLayout from "@/pages/admin/AdminLayout.vue"
 
-
-import { getUserRole, type UserRole } from "@/shared/auth/role"
+import { getUserRole, initUserRole, type UserRole } from "@/shared/auth/role"
 
 declare module "vue-router" {
   interface RouteMeta {
@@ -46,21 +45,12 @@ const routes: RouteRecordRaw[] = [
     component: ClientLayout,
     meta: { role: "client" },
     children: [
-      // 1) карта
       { path: "", name: "ClientMap", component: ClientMap },
-
-      // 2) профиль мастера + календарь
+      { path: "history", name: "ClientHistory", component: () => import("@/pages/client/ClientHistory/ClientHistory.vue") },
       { path: "master/:id", name: "ClientMaster", component: ClientMaster },
-
-      // 3) выбор времени
       { path: "master/:id/time", name: "ClientTime", component: ClientTime },
-
       { path: "contact", name: "ClientContact", component: () => import("@/pages/client/ClientContact/ClientContact.vue") },
-
-      // 4) checkout + оплата
       { path: "checkout", name: "ClientCheckout", component: ClientCheckout },
-
-      // 5) статус заявки
       { path: "status/:bookingId", name: "ClientStatus", component: ClientStatus }
     ]
   },
@@ -72,12 +62,12 @@ const routes: RouteRecordRaw[] = [
     meta: { role: "master" },
     children: [
       { path: "", redirect: { name: "MasterToday" } },
-
       { path: "calendar", name: "MasterCalendar", component: () => import("@/pages/master/MasterCalendar/MasterCalendar.vue") },
       { path: "today", name: "MasterToday", component: () => import("@/pages/master/MasterToday/MasterToday.vue") },
       { path: "profile", name: "MasterProfile", component: () => import("@/pages/master/MasterProfile/MasterProfile.vue") }
     ]
   },
+
   // ADMIN
   {
     path: "/admin",
@@ -86,10 +76,10 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: "", redirect: { name: "AdminUsers" } },
       { path: "users", name: "AdminUsers", component: () => import("@/pages/admin/AdminUsers/AdminUsers.vue") },
-      { path: "orders", name: "AdminOrders", component: () => import("@/pages/admin/AdminOrders/AdminOrders.vue") }
+      { path: "orders", name: "AdminOrders", component: () => import("@/pages/admin/AdminOrders/AdminOrders.vue") },
+      { path: "add-user", name: "AdminAddUser", component: () => import("@/pages/admin/AdminAddUser/AdminAddUser.vue") }
     ]
   },
-
 ]
 
 const router = createRouter({
@@ -97,16 +87,40 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to) => {
+// Флаг инициализации
+let roleInitialized = false
+
+router.beforeEach(async (to, from, next) => {
+  // Инициализируем роль один раз при первой навигации
+  if (!roleInitialized) {
+    console.log('Initializing user role...')
+    await initUserRole()
+    roleInitialized = true
+  }
+
   const role = getUserRole()
   const needRole = to.meta.role
-  if (!needRole) return true
+
+  console.log('Navigation:', { to: to.path, role, needRole })
+
+  if (!needRole) {
+    next()
+    return
+  }
 
   if (needRole !== role) {
-    if (role === "admin") return "/admin"
-    return role === "master" ? "/master" : "/client"
+    console.log('Role mismatch, redirecting...')
+    if (role === "admin") {
+      next("/admin")
+    } else if (role === "master") {
+      next("/master")
+    } else {
+      next("/client")
+    }
+    return
   }
-  return true
+
+  next()
 })
 
 export default router

@@ -16,7 +16,14 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000
+    port: 3000,
+    host: '0.0.0.0', // ✅ Слушать на всех интерфейсах
+    strictPort: true,
+    hmr: {
+      protocol: 'wss',
+      host: 'wesley-hyperpolysyllabic-chester.ngrok-free.dev', // ✅ Твой ngrok домен
+      clientPort: 443
+    }
   },
   optimizeDeps: {
     include: ['leaflet'],

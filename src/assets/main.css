@@ -7,12 +7,89 @@
 @tailwind utilities;
 
 
+/* ========================================
+   TELEGRAM MINI APP - SCROLL FIX
+   ======================================== */
+
+/* Reset и базовые стили */
 * {
-	margin: 0;
-	padding: 0;
-	box-sizing: border-box;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
 }
 
-html, body {
+/* Фиксируем html и body */
+html {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh; /* Dynamic viewport height для iOS */
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* #app скроллится */
+#app {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+/* Для контейнеров которые должны скроллиться */
+.scrollable {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Для контейнеров которые НЕ должны скроллиться */
+.no-scroll {
+  overflow: hidden;
+}
+
+/* Полная высота экрана */
+.full-height {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Layout с фиксированным футером */
+.layout-with-footer {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.layout-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.layout-footer {
+  flex-shrink: 0;
 }

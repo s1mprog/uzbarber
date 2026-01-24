@@ -1,11 +1,11 @@
 <script setup lang="ts">
-	import { computed, onMounted, ref, watch } from "vue"
-	import { useRoute, useRouter } from "vue-router"
-	import { useBookingStore } from "@/stores/booking"
-	import MonthCalendar from "@/components/MonthCalendar.vue"
-	import { getMasterById, getMonthLoad } from "@/api/client"
-	import type { DayLoad } from "@/api/mock/availability"
-	import BackButton from "@/components/BackButton.vue"
+import { computed, onMounted, ref, watch } from "vue"
+import { useRoute, useRouter } from "vue-router"
+import { useBookingStore } from "@/stores/booking"
+import MonthCalendar from "@/components/MonthCalendar.vue"
+import { getMasterById, getMonthLoad } from "@/api/client"
+import type { DayLoad } from "@/types/availability"
+import BackButton from "@/components/BackButton.vue"
 
 const route = useRoute()
 const router = useRouter()
@@ -22,10 +22,7 @@ const calMonth = ref(now.getMonth() + 1) // 1..12
 const loads = ref<Record<string, DayLoad>>({})
 const selectedDate = ref<string | null>(null)
 
-
-	
-	
-	async function loadMonth() {
+async function loadMonth() {
   loads.value = await getMonthLoad({
     masterId: masterId.value,
     year: calYear.value,
@@ -34,22 +31,22 @@ const selectedDate = ref<string | null>(null)
 }
 
 function prevMonth() {
-	if (calMonth.value === 1) {
-		calMonth.value = 12
+  if (calMonth.value === 1) {
+    calMonth.value = 12
     calYear.value -= 1
   } else calMonth.value -= 1
 }
 
 function nextMonth() {
-	if (calMonth.value === 12) {
-		calMonth.value = 1
+  if (calMonth.value === 12) {
+    calMonth.value = 1
     calYear.value += 1
   } else calMonth.value += 1
 }
 
 // ✅ 1) При смене masterId — один раз сетим мастера и грузим данные
 watch(
-	masterId,
+  masterId,
   async (id) => {
     if (!Number.isFinite(id)) return
     booking.setMaster(id)
@@ -66,31 +63,32 @@ watch([calYear, calMonth], async () => {
 
 // ✅ 3) При выборе даты — один раз пушим на страницу времени
 watch(
-	selectedDate,
+  selectedDate,
   (d) => {
-		if (!d) return
+    if (!d) return
     booking.setDate(d)
     router.push({
-			name: "ClientTime",
+      name: "ClientTime",
       params: { id: masterId.value },
       query: { date: d }
     })
   },
   { flush: "post" } // важно: после обновления DOM
 )
+
 function goBack() {
-	if (window.history.length > 1) router.back()
-	else router.replace({ name: "ClientMap" })
+  if (window.history.length > 1) router.back()
+  else router.replace({ name: "ClientMap" })
 }
 
 onMounted(async () => {
-	// если надо — можно тут дополнительно что-то
+  // если надо — можно тут дополнительно что-то
 })
 </script>
 
 <template>
-	<div class="p-4 space-y-4">
-		<BackButton @click="goBack" />
+  <div class="p-4 space-y-4">
+    <BackButton @click="goBack" />
 
     <div class="rounded-2xl bg-white p-4 shadow">
       <h1 class="text-xl font-bold">{{ master?.name || `Master #${masterId}` }}</h1>

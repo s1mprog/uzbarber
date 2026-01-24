@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import type { DayLoad } from "@/api/mock/availability"
+import type { DayLoad } from "@/types/availability"
 
 const props = defineProps<{
   year: number
