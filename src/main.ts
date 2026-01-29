@@ -11,12 +11,12 @@ import './assets/main.css'
 // ========================================
 
 // 🎯 Просто измените telegram_id на нужный для тестирования:
-const DEV_USER_ID = 7870309691  // ← ИЗМЕНИТЕ ЗДЕСЬ
+const DEV_USER_ID = 78703096911  // ← ИЗМЕНИТЕ ЗДЕСЬ
 
 // Проверяем есть ли реальный Telegram API
 const hasTelegramWebApp = !!(window as any).Telegram?.WebApp
 const hasTelegramUser = !!(window as any).Telegram?.WebApp?.initDataUnsafe?.user?.id
-
+  
 console.log('🔍 Telegram detection:')
 console.log('   Has Telegram.WebApp:', hasTelegramWebApp)
 console.log('   Has user data:', hasTelegramUser)

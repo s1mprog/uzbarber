@@ -1,75 +1,142 @@
 <script setup lang="ts">
-import { computed } from "vue"
-import { useRoute, useRouter } from "vue-router"
+import { useRoute } from 'vue-router'
+import { computed } from 'vue'
 
 const route = useRoute()
-const router = useRouter()
 
-const isMapActive = computed(() => route.name === 'ClientMap')
-const isHistoryActive = computed(() => route.name === 'ClientHistory')
-
-function goToMap() {
-  router.push({ name: 'ClientMap' })
-}
-
-function goToHistory() {
-  router.push({ name: 'ClientHistory' })
+const isActive = (routeName: string) => {
+  return computed(() => route.name === routeName)
 }
 </script>
 
 <template>
-  <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 safe-bottom">
-    <div class="grid grid-cols-2 gap-2">
+  <footer class="client-footer">
+    <nav class="footer-nav">
       <!-- Карта -->
-      <button 
-        class="flex flex-col items-center justify-center py-2 rounded-xl transition-colors"
-        :class="isMapActive ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-100'"
-        @click="goToMap"
+      <router-link 
+        to="/client" 
+        class="nav-item"
+        :class="{ active: isActive('ClientHome').value }"
       >
-        <svg 
-          class="w-6 h-6 mb-1" 
-          fill="none" 
-          stroke="currentColor" 
-          viewBox="0 0 24 24"
-        >
-          <path 
-            stroke-linecap="round" 
-            stroke-linejoin="round" 
-            stroke-width="2" 
-            d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
-          />
-        </svg>
-        <span class="text-xs font-medium">Карта</span>
-      </button>
+        <div class="nav-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+          </svg>
+        </div>
+        <span class="nav-label">Карта</span>
+      </router-link>
 
       <!-- История -->
-      <button 
-        class="flex flex-col items-center justify-center py-2 rounded-xl transition-colors"
-        :class="isHistoryActive ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-100'"
-        @click="goToHistory"
+      <router-link 
+        to="/client/history" 
+        class="nav-item"
+        :class="{ active: isActive('ClientHistory').value }"
       >
-        <svg 
-          class="w-6 h-6 mb-1" 
-          fill="none" 
-          stroke="currentColor" 
-          viewBox="0 0 24 24"
-        >
-          <path 
-            stroke-linecap="round" 
-            stroke-linejoin="round" 
-            stroke-width="2" 
-            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-          />
-        </svg>
-        <span class="text-xs font-medium">История</span>
-      </button>
-    </div>
-  </div>
+        <div class="nav-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+        </div>
+        <span class="nav-label">История</span>
+      </router-link>
+    </nav>
+  </footer>
 </template>
 
 <style scoped>
-/* Safe area для iOS */
-.safe-bottom {
-  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+.client-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1001;
+  background: #ffffff;
+  border-top: 1px solid #f0f0f0;
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.footer-nav {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  padding: 8px 0;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  text-decoration: none;
+  color: #9ca3af;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  background: transparent;
+}
+
+.nav-label {
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+/* Active state */
+.nav-item.active {
+  color: #667eea;
+}
+
+.nav-item.active .nav-icon {
+  background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+}
+
+.nav-item.active .nav-icon svg {
+  stroke: #667eea;
+  stroke-width: 2.5;
+}
+
+/* Hover effect */
+.nav-item:hover .nav-icon {
+  background: #f5f5f5;
+  transform: scale(1.05);
+}
+
+/* Active indicator */
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 3px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  border-radius: 0 0 4px 4px;
+}
+
+/* Responsive */
+@media (max-width: 375px) {
+  .nav-label {
+    font-size: 11px;
+  }
+  
+  .nav-icon {
+    width: 36px;
+    height: 36px;
+  }
 }
 </style>
