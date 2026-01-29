@@ -138,7 +138,7 @@ onMounted(async () => {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, 150%);
   text-align: center;
   background: white;
   padding: 32px 24px;
