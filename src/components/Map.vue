@@ -112,6 +112,28 @@ const bookMaster = (master: Master) => {
   background: white;
 }
 
+/* Увеличить кнопку закрытия (×) */
+:deep(.leaflet-popup-close-button) {
+  width: 44px !important;
+  height: 44px !important;
+  font-size: 28px !important; /* размер самого × */
+  line-height: 44px !important;
+  padding: 0 !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  color: #1a1a1a !important;
+}
+
+/* Чуть сместить, чтобы красиво сидела */
+:deep(.leaflet-popup-close-button) {
+  top: 6px !important;
+  right: 6px !important;
+}
+
+
 /* Popup card */
 .popup-card {
   padding: 16px;

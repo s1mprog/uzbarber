@@ -3,42 +3,38 @@ import Map from "@/components/Map.vue"
 import type { Master } from "@/types/master"
 import { onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
+import { getMastersNearby } from "@/api/client"
 
 const router = useRouter()
 
-// Тест-данные мастеров (позже заменишь на API)
-const masters = ref<Master[]>([
-  {
-    id: 1,
-    name: "Мастер Иван",
-    lat: 41.34125936014218,
-    lng: 69.24285354126796,
-    address: "Nurafshon kochasi 14, Тоshkent, Toshkent, Узбекистан",
-    rating: 4.8
-  },
-  {
-    id: 2,
-    name: "Barber Ali",
-    lat: 41.3289,
-    lng: 69.2482,
-    address: "Tashkent City, Узбекистан",
-    rating: 4.6
-  }
-])
+const masters = ref<Master[]>([])
+const loading = ref(true)
+const error = ref<string | null>(null)
 
-// Центр карты (позже подставишь геолокацию)
 const userLocation = ref<[number, number]>([41.323766661763415, 69.2429604718647])
 
-// Клик "Записаться" -> профиль мастера + календарь
 const handleBook = (master: Master) => {
   router.push({ name: "ClientMaster", params: { id: master.id } })
 }
 
+function reloadPage() {
+  window.location.reload()
+}
+
 onMounted(async () => {
-  // позже:
-  // masters.value = await api.getMastersNearby(...)
-  // userLocation.value = await getUserLocation()
-  console.log('Loaded masters:', masters.value)
+  try {
+    loading.value = true
+    
+    const [userLat, userLng] = userLocation.value
+    masters.value = await getMastersNearby(userLat, userLng, 10)
+    
+    console.log('Loaded masters:', masters.value)
+  } catch (err) {
+    console.error('Error loading masters:', err)
+    error.value = 'Не удалось загрузить мастеров'
+  } finally {
+    loading.value = false
+  }
 })
 </script>
 
@@ -48,21 +44,55 @@ onMounted(async () => {
     <div class="map-header">
       <div class="header-content">
         <h1 class="header-title">Найдите своего барбера</h1>
-        <p class="header-subtitle">{{ masters.length }} мастеров рядом</p>
+        <p class="header-subtitle" v-if="loading">
+          Загрузка...
+        </p>
+        <p class="header-subtitle" v-else-if="!error">
+          {{ masters.length }} мастеров рядом
+        </p>
       </div>
     </div>
 
-    <!-- Карта на весь экран -->
-    <Map :masters="masters" :center="userLocation" @book="handleBook" />
+    <!-- Loading -->
+    <div v-if="loading" class="center-message">
+      <div class="loading-spinner"></div>
+      <p>Загрузка мастеров...</p>
+    </div>
+
+    <!-- Error -->
+    <div v-else-if="error" class="center-message">
+      <div class="error-icon">⚠️</div>
+      <p class="error-text">{{ error }}</p>
+      <button 
+        @click="reloadPage"
+        class="retry-btn"
+      >
+        Попробовать снова
+      </button>
+    </div>
+
+    <!-- Map -->
+    <Map 
+      v-else-if="masters.length > 0"
+      :masters="masters" 
+      :center="userLocation" 
+      @book="handleBook" 
+    />
+
+    <!-- Empty -->
+    <div v-else class="center-message">
+      <div class="empty-icon">🔍</div>
+      <p>Рядом нет доступных мастеров</p>
+    </div>
   </div>
 </template>
 
 <style scoped>
+/* Страница на весь экран */
 .client-map-page {
   position: relative;
   width: 100%;
   height: 100%;
-  /* Убрали градиентный фон - он мешал видеть карту */
 }
 
 /* Заголовок поверх карты */
@@ -103,6 +133,83 @@ onMounted(async () => {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
+/* Центрированные сообщения */
+.center-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  background: white;
+  padding: 32px 24px;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 1001;
+  min-width: 280px;
+}
+
+/* Loading spinner */
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.center-message p {
+  margin: 0;
+  font-size: 16px;
+  color: #666;
+  font-weight: 500;
+}
+
+/* Error */
+.error-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.error-text {
+  color: #ef4444 !important;
+  margin-bottom: 16px !important;
+}
+
+.retry-btn {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.retry-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
+.retry-btn:active {
+  transform: translateY(0);
+}
+
+/* Empty */
+.empty-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
 /* Responsive */
 @media (max-width: 375px) {
   .header-title {
@@ -111,6 +218,11 @@ onMounted(async () => {
   
   .header-subtitle {
     font-size: 13px;
+  }
+  
+  .center-message {
+    min-width: 240px;
+    padding: 24px 20px;
   }
 }
 </style>
