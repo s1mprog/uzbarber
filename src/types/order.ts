@@ -5,6 +5,7 @@ export type OrderStatus =
   | "done"
   | "in_progress"
   | "booked"
+  | "pending"              // ✅ ДОБАВЛЕНО
   | "not_accepted"
   | "canceled_by_client"
   | "canceled_by_master"
@@ -36,15 +37,17 @@ export type Order = {
 export function statusLabel(s: OrderStatus): string {
   switch (s) {
     case "done":
-      return "Сделанный"
+      return "Завершён"
     case "in_progress":
       return "В процессе"
     case "booked":
-      return "Забронированный"
+      return "Принят"
+    case "pending":
+      return "Ожидает"        
     case "not_accepted":
       return "Непринятый"
     case "canceled_by_client":
-      return "Отменён пользователем"
+      return "Отменён клиентом"
     case "canceled_by_master":
       return "Отменён мастером"
   }
@@ -58,6 +61,8 @@ export function statusBadgeClass(s: OrderStatus): string {
       return "bg-blue-100 text-blue-700"
     case "booked":
       return "bg-yellow-100 text-yellow-700"
+    case "pending":
+      return "bg-orange-100 text-orange-600" 
     case "not_accepted":
       return "bg-orange-100 text-orange-700"
     case "canceled_by_client":

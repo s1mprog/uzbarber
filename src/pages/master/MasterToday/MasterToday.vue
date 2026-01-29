@@ -15,10 +15,25 @@ const today = new Date()
 const pad = (n: number) => String(n).padStart(2, "0")
 const todayKey = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`
 
+// ✅ ИСПРАВЛЕНО: Показываем все pending/not_accepted заказы + сегодняшние
 const todayOrders = computed(() => {
   return orders.value
-    .filter((o) => o.bookingDate === todayKey)
-    .sort((a, b) => a.startTime.localeCompare(b.startTime))
+    .filter((o) => {
+      // Показываем заказ если:
+      // 1. Статус pending/not_accepted (независимо от даты) - ГЛАВНОЕ ИЗМЕНЕНИЕ
+      // 2. ИЛИ дата = сегодня (любой статус)
+      return o.status === 'not_accepted' || 
+             o.status === 'pending' || 
+             o.bookingDate === todayKey
+    })
+    .sort((a, b) => {
+      // Сначала сортируем по дате (сегодняшние первыми)
+      if (a.bookingDate !== b.bookingDate) {
+        return a.bookingDate.localeCompare(b.bookingDate)
+      }
+      // Потом по времени
+      return a.startTime.localeCompare(b.startTime)
+    })
 })
 
 async function loadOrders() {
@@ -41,10 +56,53 @@ async function loadOrders() {
     
     masterId.value = mId
     
-    // Загружаем заказы за сегодня
-    orders.value = await getTodayOrders(mId)
+    // ✅ ИЗМЕНЕНО: Загружаем ВСЕ активные заказы, не только сегодняшние
+    // Чтобы видеть pending заказы на будущее
+    const { data, error: fetchError } = await supabase
+      .from('orders')
+      .select(`
+        id,
+        booking_date,
+        start_time,
+        duration_minutes,
+        price,
+        comment,
+        status,
+        client_id,
+        created_at,
+        updated_at,
+        users!orders_client_id_fkey(
+          id,
+          name,
+          phone
+        )
+      `)
+      .eq('master_id', mId)
+      .in('status', ['not_accepted', 'pending', 'booked', 'completed'])
+      .order('booking_date', { ascending: true })
+      .order('start_time', { ascending: true })
     
-    console.log('Loaded today orders:', orders.value)
+    if (fetchError) throw fetchError
+    
+    // Преобразуем данные в нужный формат
+    orders.value = (data || []).map((row: any) => ({
+      id: row.id,
+      clientId: row.client_id,
+      masterId: mId, // Добавлено
+      clientName: row.users?.name || 'Клиент',
+      clientPhone: row.users?.phone || '',
+      comment: row.comment || undefined,
+      bookingDate: row.booking_date,
+      startTime: row.start_time,
+      durationMinutes: row.duration_minutes,
+      status: row.status,
+      price: row.price,
+      createdAt: row.created_at || '', // Добавлено
+      updatedAt: row.updated_at || ''  // Добавлено
+    }))
+    
+    console.log('Loaded orders:', orders.value)
+    console.log('Pending orders:', orders.value.filter(o => o.status === 'not_accepted' || o.status === 'pending'))
     
   } catch (err: any) {
     console.error('Error loading orders:', err)
@@ -160,6 +218,24 @@ async function rejectOrder(orderId: number) {
   }
 }
 
+// ✅ Форматирование даты для отображения
+function formatDate(dateStr: string) {
+  const [year, month, day] = dateStr.split('-')
+  const date = new Date(Number(year), Number(month) - 1, Number(day))
+  
+  const isToday = dateStr === todayKey
+  
+  const tomorrow = new Date(today)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowKey = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`
+  const isTomorrow = dateStr === tomorrowKey
+  
+  if (isToday) return 'Сегодня'
+  if (isTomorrow) return 'Завтра'
+  
+  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+}
+
 onMounted(() => {
   loadOrders()
 })
@@ -192,11 +268,16 @@ onMounted(() => {
 
     <!-- Empty -->
     <div v-else-if="todayOrders.length === 0" class="rounded-2xl bg-white p-4 shadow">
-      Сегодня заказов нет.
+      Заказов нет.
     </div>
 
     <!-- Orders -->
     <div v-else v-for="o in todayOrders" :key="o.id" class="rounded-2xl bg-white p-4 shadow space-y-2">
+      <!-- ✅ Показываем дату если не сегодня -->
+      <div v-if="o.bookingDate !== todayKey" class="text-xs font-semibold text-orange-600 mb-1">
+        📅 {{ formatDate(o.bookingDate) }}
+      </div>
+      
       <div class="flex items-center justify-between">
         <div class="font-semibold">{{ o.startTime }} — {{ o.clientName }}</div>
         <span class="text-xs px-2 py-1 rounded-full" :class="statusBadgeClass(o.status)">
