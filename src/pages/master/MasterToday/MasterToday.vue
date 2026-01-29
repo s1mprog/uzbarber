@@ -73,7 +73,8 @@ async function loadOrders() {
         updated_at,
         users!orders_client_id_fkey(
           id,
-          name,
+          first_name,
+          last_name,
           phone
         )
       `)
@@ -88,8 +89,8 @@ async function loadOrders() {
     orders.value = (data || []).map((row: any) => ({
       id: row.id,
       clientId: row.client_id,
-      masterId: mId, // Добавлено
-      clientName: row.users?.name || 'Клиент',
+      masterId: mId,
+      clientName: [row.users?.first_name, row.users?.last_name].filter(Boolean).join(' ') || 'Клиент',
       clientPhone: row.users?.phone || '',
       comment: row.comment || undefined,
       bookingDate: row.booking_date,

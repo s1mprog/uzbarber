@@ -19,11 +19,12 @@ export default defineConfig({
     port: 3000,
     host: '0.0.0.0', // ✅ Слушать на всех интерфейсах
     strictPort: true,
-    hmr: {
-      protocol: 'wss',
-      host: 'wesley-hyperpolysyllabic-chester.ngrok-free.dev', // ✅ Твой ngrok домен
-      clientPort: 443
-    }
+    // hmr: {
+    //   protocol: 'wss',
+    //   host: 'wesley-hyperpolysyllabic-chester.ngrok-free.dev', // ✅ Твой ngrok домен
+    //   clientPort: 443
+    // }
+    hmr: false
   },
   optimizeDeps: {
     include: ['leaflet'],
