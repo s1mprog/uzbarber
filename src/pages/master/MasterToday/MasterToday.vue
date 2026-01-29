@@ -15,16 +15,20 @@ const today = new Date()
 const pad = (n: number) => String(n).padStart(2, "0")
 const todayKey = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`
 
-// ✅ ИСПРАВЛЕНО: Показываем все pending/not_accepted заказы + сегодняшние
+// ✅ ИСПРАВЛЕНО: Показываем:
+// 1. ВСЕ непринятые/pending заказы (любая дата)
+// 2. ВСЕ сегодняшние заказы (любой статус)
 const todayOrders = computed(() => {
   return orders.value
     .filter((o) => {
       // Показываем заказ если:
-      // 1. Статус pending/not_accepted (независимо от даты) - ГЛАВНОЕ ИЗМЕНЕНИЕ
-      // 2. ИЛИ дата = сегодня (любой статус)
-      return o.status === 'not_accepted' || 
-             o.status === 'pending' || 
-             o.bookingDate === todayKey
+      // 1. Статус pending/not_accepted (независимо от даты)
+      const isPending = o.status === 'not_accepted' || o.status === 'pending'
+      
+      // 2. ИЛИ дата = сегодня (любой статус - booked, done, canceled и т.д.)
+      const isToday = o.bookingDate === todayKey
+      
+      return isPending || isToday
     })
     .sort((a, b) => {
       // Сначала сортируем по дате (сегодняшние первыми)
@@ -56,8 +60,7 @@ async function loadOrders() {
     
     masterId.value = mId
     
-    // ✅ ИЗМЕНЕНО: Загружаем ВСЕ активные заказы, не только сегодняшние
-    // Чтобы видеть pending заказы на будущее
+    // ✅ ИЗМЕНЕНО: Загружаем ВСЕ активные заказы
     const { data, error: fetchError } = await supabase
       .from('orders')
       .select(`
@@ -79,7 +82,16 @@ async function loadOrders() {
         )
       `)
       .eq('master_id', mId)
-      .in('status', ['not_accepted', 'pending', 'booked', 'completed'])
+      // Загружаем ВСЕ статусы (включая done, canceled и т.д.)
+      .in('status', [
+        'not_accepted', 
+        'pending', 
+        'booked', 
+        'in_progress',
+        'done',
+        'canceled_by_client',
+        'canceled_by_master'
+      ])
       .order('booking_date', { ascending: true })
       .order('start_time', { ascending: true })
     
