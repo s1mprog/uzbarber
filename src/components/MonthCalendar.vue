@@ -53,6 +53,9 @@ const daysGrid = computed(() => {
   return cells
 })
 
+const weekdays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+const weekdaysShort = ["П", "В", "С", "Ч", "П", "С", "В"]
+
 function dayLoad(dateKey: string) {
   return props.loads?.[dateKey]
 }
@@ -127,9 +130,7 @@ function isToday(dateKey: string) {
     <!-- Loading skeleton -->
     <div v-else-if="loading" class="skeleton-grid">
       <div class="weekdays">
-        <div class="wd">Пн</div><div class="wd">Вт</div><div class="wd">Ср</div>
-        <div class="wd">Чт</div><div class="wd">Пт</div><div class="wd">Сб</div>
-        <div class="wd">Вс</div>
+        <div class="wd" v-for="(w, i) in weekdays" :key="i">{{ w }}</div>
       </div>
 
       <div class="grid">
@@ -140,13 +141,12 @@ function isToday(dateKey: string) {
     <!-- Calendar -->
     <div v-else class="calendar-body">
       <div class="weekdays">
-        <div class="wd">Пн</div><div class="wd">Вт</div><div class="wd">Ср</div>
-        <div class="wd">Чт</div><div class="wd">Пт</div><div class="wd">Сб</div>
-        <div class="wd">Вс</div>
+        <div class="wd full" v-for="(w, i) in weekdays" :key="'f'+i">{{ w }}</div>
+        <div class="wd short" v-for="(w, i) in weekdaysShort" :key="'s'+i">{{ w }}</div>
       </div>
 
       <div class="grid">
-        <div v-for="(cell, idx) in daysGrid" :key="idx">
+        <div v-for="(cell, idx) in daysGrid" :key="idx" class="grid-item">
           <div v-if="cell.type === 'empty'" class="cell-empty"></div>
 
           <button
@@ -177,16 +177,25 @@ function isToday(dateKey: string) {
 
       <div class="legend">
         <span class="legend-dot"></span>
-        <span>цифра — свободные часы</span>
+        <span class="legend-text">цифра — свободные</span>
         <span class="legend-sep">•</span>
-        <span>полоска — занятость</span>
+        <span class="legend-text">полоска — занятость</span>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+/* ✅ главное: чтобы padding не раздувал ширину и ничего не толкало сетку вправо */
+.calendar-card,
+.calendar-card * {
+  box-sizing: border-box;
+}
+
 .calendar-card {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip; /* можно заменить на hidden если clip не нравится */
   padding: 14px;
   border-radius: 18px;
 
@@ -198,6 +207,13 @@ function isToday(dateKey: string) {
   box-shadow:
     0 12px 34px rgba(0, 0, 0, 0.10),
     inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.calendar-body,
+.skeleton-grid {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 /* Header */
@@ -336,8 +352,9 @@ function isToday(dateKey: string) {
 
 /* Weekdays */
 .weekdays {
+  width: 100%;
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
   margin-top: 10px;
 }
@@ -347,20 +364,28 @@ function isToday(dateKey: string) {
   font-weight: 800;
   color: rgba(15, 23, 42, 0.55);
 }
+.wd.short { display: none; }
 
-/* Grid */
+/* ✅ Grid: minmax(0,1fr) + grid item min-width:0 = НЕ будет вылезать */
 .grid {
+  width: 100%;
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
   margin-top: 8px;
+}
+
+.grid-item {
+  min-width: 0; /* ✅ критично */
 }
 
 .cell-empty {
   height: 56px;
 }
 
+/* ✅ тоже критично: min-width:0 */
 .cell {
+  min-width: 0;
   height: 56px;
   width: 100%;
   border-radius: 16px;
@@ -414,6 +439,7 @@ function isToday(dateKey: string) {
 }
 
 .cell-free {
+  flex: 0 0 auto;
   font-size: 11px;
   font-weight: 900;
   color: rgba(15, 23, 42, 0.55);
@@ -421,6 +447,7 @@ function isToday(dateKey: string) {
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.06);
   border: 1px solid rgba(15, 23, 42, 0.08);
+  white-space: nowrap;
 }
 
 .cell-bar {
@@ -458,9 +485,8 @@ function isToday(dateKey: string) {
   background: #22c55e;
   box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
 }
-.legend-sep {
-  opacity: 0.6;
-}
+.legend-sep { opacity: 0.6; }
+.legend-text { white-space: nowrap; }
 
 /* Skeleton */
 .skeleton-grid .cell-skeleton {
@@ -475,9 +501,46 @@ function isToday(dateKey: string) {
   50% { opacity: 1; }
 }
 
+/* ✅ Mobile (<= 375px) */
 @media (max-width: 375px) {
-  .cell-empty { height: 52px; }
-  .cell { height: 52px; border-radius: 14px; }
+  .calendar-card { padding: 12px; border-radius: 16px; }
+
+  .icon-btn { width: 36px; height: 36px; border-radius: 12px; }
+
   .grid, .weekdays { gap: 6px; }
+
+  .cell-empty { height: 50px; }
+  .cell { height: 50px; border-radius: 14px; padding: 8px 8px 7px; }
+
+  .cell-top { margin-bottom: 12px; }
+  .cell-day { font-size: 12px; }
+
+  .cell-free {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    font-size: 10px;
+    font-weight: 900;
+  }
+
+  .cell-bar { left: 8px; right: 8px; bottom: 7px; height: 5px; }
+  .cell-bar-fill { height: 5px; }
+
+  .wd.full { display: none; }
+  .wd.short { display: block; font-size: 10px; }
+
+  .legend { font-size: 11px; gap: 6px; }
+  .legend-text { white-space: normal; }
+}
+
+/* ✅ Extra small (<= 340px) */
+@media (max-width: 340px) {
+  .grid, .weekdays { gap: 5px; }
+  .cell { height: 46px; border-radius: 12px; padding: 7px 7px 6px; }
+  .cell-empty { height: 46px; }
+  .cell-free { width: 18px; height: 18px; font-size: 9px; }
 }
 </style>
