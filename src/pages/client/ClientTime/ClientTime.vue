@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue"
+import { computed, onMounted, onUnmounted, ref } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import { useBookingStore } from "@/stores/booking"
 import { getBookedHours, getTimeSlots24h } from "@/api/client"
@@ -17,7 +17,63 @@ const bookedSet = ref<Set<string>>(new Set())
 const loading = ref(true)
 const error = ref<string | null>(null)
 
+// ✅ тикер времени (чтобы обновлять cutoff без перезагрузки страницы)
+const nowTick = ref(Date.now())
+let timer: number | null = null
+
 const isBooked = (start: string) => bookedSet.value.has(start)
+
+function pad(n: number) {
+  return String(n).padStart(2, "0")
+}
+
+const todayKey = computed(() => {
+  const t = new Date(nowTick.value)
+  return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`
+})
+
+const isPastDate = computed(() => {
+  if (!date.value) return false
+  return date.value < todayKey.value
+})
+
+const isTodaySelected = computed(() => {
+  if (!date.value) return false
+  return date.value === todayKey.value
+})
+
+function parseSlotMinutes(t: string) {
+  // "13:00" or "13:00:00" -> minutes from 00:00
+  const parts = String(t || "").split(":")
+  const h = Number(parts[0] ?? 0)
+  const m = Number(parts[1] ?? 0)
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return 0
+  return h * 60 + m
+}
+
+const cutoffMinutes = computed(() => {
+  // если не сегодня — cutoff не нужен
+  if (!isTodaySelected.value) return -1
+
+  const now = new Date(nowTick.value)
+  const h = now.getHours()
+  const m = now.getMinutes()
+
+  // ✅ если 13:38 -> cutoff = 14:00
+  // если 13:00 -> cutoff = 13:00 (можно 13:00 слот)
+  const cutoffHour = m > 0 ? h + 1 : h
+  return cutoffHour * 60
+})
+
+function isPastSlot(start: string) {
+  if (isPastDate.value) return true
+  if (!isTodaySelected.value) return false
+  return parseSlotMinutes(start) < cutoffMinutes.value
+}
+
+function isDisabledSlot(start: string) {
+  return isBooked(start) || isPastSlot(start)
+}
 
 function goBack() {
   if (window.history.length > 1) router.back()
@@ -25,7 +81,7 @@ function goBack() {
 }
 
 function pickSlot(s: { start: string; end: string }) {
-  if (isBooked(s.start)) return
+  if (isDisabledSlot(s.start)) return
   booking.setTime(s.start)
   router.push({ name: "ClientContact" })
 }
@@ -35,8 +91,8 @@ function retry() {
 }
 
 function parseHour(t: string) {
-  // "09:00" -> 9
-  const h = Number(t.split(":")[0])
+  const parts = String(t || "").split(":")
+  const h = Number(parts[0])
   return Number.isFinite(h) ? h : 0
 }
 
@@ -96,6 +152,15 @@ async function load() {
 
 onMounted(async () => {
   await load()
+
+  // ✅ обновляем время раз в 30 секунд (cutoff пересчитается сам)
+  timer = window.setInterval(() => {
+    nowTick.value = Date.now()
+  }, 30_000)
+})
+
+onUnmounted(() => {
+  if (timer) window.clearInterval(timer)
 })
 </script>
 
@@ -113,7 +178,6 @@ onMounted(async () => {
         <div class="topbar-text">
           <div class="topbar-title">
             <span class="mini-ic" aria-hidden="true">
-              <!-- clock -->
               <svg viewBox="0 0 24 24" fill="none">
                 <path d="M12 8v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="2"/>
@@ -121,9 +185,9 @@ onMounted(async () => {
             </span>
             Выбор времени
           </div>
+
           <div class="topbar-subtitle">
             <span class="mini-ic sub" aria-hidden="true">
-              <!-- calendar -->
               <svg viewBox="0 0 24 24" fill="none">
                 <path d="M7 3v3M17 3v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 <path d="M4 7h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -161,6 +225,15 @@ onMounted(async () => {
               Выберите удобное время
             </div>
 
+            <div v-if="isTodaySelected" class="info-sub">
+              Сейчас: <b>{{ new Date(nowTick).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) }}</b>
+              <span class="sep">•</span>
+              Доступно с: <b>{{ String(Math.floor(cutoffMinutes/60)).padStart(2,"0") }}:00</b>
+            </div>
+
+            <div v-else-if="isPastDate" class="info-sub warn">
+              Эта дата уже прошла — время недоступно
+            </div>
           </div>
 
           <div class="info-right">
@@ -217,7 +290,6 @@ onMounted(async () => {
           <div class="section-head">
             <div class="section-title">
               <span class="section-ic" aria-hidden="true">
-                <!-- icons by section -->
                 <svg v-if="g.icon === 'sunrise'" viewBox="0 0 24 24" fill="none">
                   <path d="M3 17h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                   <path d="M8 17a4 4 0 0 1 8 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -241,7 +313,7 @@ onMounted(async () => {
             <div class="section-hint">
               <span class="hint-dot free"></span> свободно
               <span class="hint-sep">•</span>
-              <span class="hint-dot busy"></span> занято
+              <span class="hint-dot busy"></span> занято/недоступно
             </div>
           </div>
 
@@ -250,8 +322,8 @@ onMounted(async () => {
               v-for="s in g.items"
               :key="s.start"
               class="slot"
-              :class="{ booked: isBooked(s.start) }"
-              :disabled="isBooked(s.start)"
+              :class="{ booked: isBooked(s.start), past: isPastSlot(s.start) }"
+              :disabled="isDisabledSlot(s.start)"
               @click="pickSlot(s)"
               type="button"
             >
@@ -268,6 +340,9 @@ onMounted(async () => {
               <div class="slot-status" v-if="isBooked(s.start)">
                 Занято
               </div>
+              <div class="slot-status past" v-else-if="isPastSlot(s.start)">
+                Недоступно
+              </div>
               <div class="slot-status free" v-else>
                 Свободно
               </div>
@@ -276,7 +351,6 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- footer note -->
       <div v-if="!loading && !error && slots.length" class="note">
         Нажмите на свободный слот, чтобы перейти к подтверждению.
       </div>
@@ -285,6 +359,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* твой стиль + пару добавок */
 .client-time-page {
   position: relative;
   width: 100%;
@@ -322,9 +397,7 @@ onMounted(async () => {
     inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 
-.topbar-text {
-  min-width: 0;
-}
+.topbar-text { min-width: 0; }
 
 .topbar-title {
   display: flex;
@@ -392,14 +465,14 @@ onMounted(async () => {
   gap: 8px;
   align-items: center;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   color: rgba(15, 23, 42, 0.55);
+  flex-wrap: wrap;
 }
+.info-sub .sep { opacity: 0.6; }
 
-.info-right {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
+.info-sub.warn {
+  color: rgba(239, 68, 68, 0.85);
 }
 
 /* Mini icons */
@@ -425,7 +498,6 @@ onMounted(async () => {
   background: rgba(15, 23, 42, 0.06);
   border: 1px solid rgba(15, 23, 42, 0.08);
 }
-
 .dot {
   width: 8px;
   height: 8px;
@@ -452,13 +524,10 @@ onMounted(async () => {
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.10);
 }
 .icon-btn:active { transform: translateY(0); }
-
 .btn-ic { width: 18px; height: 18px; }
 
 /* Sheet states */
-.sheet {
-  position: relative;
-}
+.sheet { position: relative; }
 .sheet-card {
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -490,18 +559,8 @@ onMounted(async () => {
   border-color: rgba(239, 68, 68, 0.18);
 }
 .sheet-text { min-width: 0; }
-.sheet-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 900;
-  color: #0f172a;
-}
-.sheet-subtitle {
-  margin: 4px 0 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: rgba(15, 23, 42, 0.55);
-}
+.sheet-title { margin: 0; font-size: 14px; font-weight: 900; color: #0f172a; }
+.sheet-subtitle { margin: 4px 0 0; font-size: 12px; font-weight: 700; color: rgba(15, 23, 42, 0.55); }
 
 /* Primary button */
 .primary-btn {
@@ -539,18 +598,13 @@ onMounted(async () => {
 }
 .w-60 { width: 60%; }
 .w-40 { width: 40%; }
-
 @keyframes pulse {
   0%, 100% { opacity: 0.55; }
   50% { opacity: 1; }
 }
 
 /* Sections */
-.sections {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
+.sections { display: flex; flex-direction: column; gap: 14px; }
 
 .section {
   padding: 14px;
@@ -603,20 +657,9 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
-.hint-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  display: inline-block;
-}
-.hint-dot.free {
-  background: #22c55e;
-  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
-}
-.hint-dot.busy {
-  background: rgba(15, 23, 42, 0.25);
-  box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.08);
-}
+.hint-dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
+.hint-dot.free { background: #22c55e; box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15); }
+.hint-dot.busy { background: rgba(15, 23, 42, 0.25); box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.08); }
 .hint-sep { opacity: 0.6; }
 
 /* Slots grid */
@@ -642,14 +685,23 @@ onMounted(async () => {
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.10);
   border-color: rgba(15, 23, 42, 0.18);
 }
-
 .slot:active { transform: translateY(0); }
 
+/* ✅ booked */
 .slot.booked {
   cursor: not-allowed;
   opacity: 0.50;
   transform: none !important;
   box-shadow: none !important;
+}
+
+/* ✅ past (по времени) */
+.slot.past {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none !important;
+  box-shadow: none !important;
+  filter: grayscale(0.25);
 }
 
 .slot-time {
@@ -675,10 +727,8 @@ onMounted(async () => {
   font-weight: 800;
   color: rgba(15, 23, 42, 0.55);
 }
-
-.slot-status.free {
-  color: rgba(34, 197, 94, 0.95);
-}
+.slot-status.free { color: rgba(34, 197, 94, 0.95); }
+.slot-status.past { color: rgba(239, 68, 68, 0.85); }
 
 /* Note */
 .note {
