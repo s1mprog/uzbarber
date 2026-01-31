@@ -28,6 +28,14 @@ const error = ref<string | null>(null)
 let masterReqToken = 0
 let monthReqToken = 0
 
+function pad(n: number) {
+  return String(n).padStart(2, "0")
+}
+const todayKey = computed(() => {
+  const t = new Date()
+  return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`
+})
+
 async function loadMonth() {
   const token = ++monthReqToken
   try {
@@ -144,7 +152,6 @@ const ratingText = computed(() => (master.value?.rating ? String(master.value.ra
     <div class="topbar">
       <div class="topbar-card">
         <button class="icon-btn" type="button" @click="goBack" aria-label="Назад" title="Назад">
-          <!-- back -->
           <svg class="btn-ic" viewBox="0 0 24 24" fill="none">
             <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
@@ -153,7 +160,6 @@ const ratingText = computed(() => (master.value?.rating ? String(master.value.ra
         <div class="topbar-text">
           <div class="topbar-title">
             <span class="mini-ic" aria-hidden="true">
-              <!-- calendar -->
               <svg viewBox="0 0 24 24" fill="none">
                 <path d="M7 3v3M17 3v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 <path d="M4 7h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -166,7 +172,6 @@ const ratingText = computed(() => (master.value?.rating ? String(master.value.ra
 
           <div class="topbar-subtitle">
             <span class="mini-ic sub" aria-hidden="true">
-              <!-- clock -->
               <svg viewBox="0 0 24 24" fill="none">
                 <path d="M12 8v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="2"/>
@@ -177,7 +182,6 @@ const ratingText = computed(() => (master.value?.rating ? String(master.value.ra
         </div>
 
         <button class="icon-btn" type="button" @click="retryAll" aria-label="Обновить" title="Обновить">
-          <!-- refresh -->
           <svg class="btn-ic" viewBox="0 0 24 24" fill="none">
             <path d="M20 12a8 8 0 1 1-2.34-5.66" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             <path d="M20 4v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -195,7 +199,6 @@ const ratingText = computed(() => (master.value?.rating ? String(master.value.ra
               <span v-if="loadingMaster" class="skeleton-line w-60"></span>
               <span v-else>
                 <span class="mini-ic brand" aria-hidden="true">
-                  <!-- tag/brand -->
                   <svg viewBox="0 0 24 24" fill="none">
                     <path d="M20.59 13.41 12 22l-9-9V3h10l7.59 7.59a2 2 0 0 1 0 2.82Z"
                           stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
@@ -210,7 +213,6 @@ const ratingText = computed(() => (master.value?.rating ? String(master.value.ra
               <span v-if="loadingMaster" class="skeleton-line w-40"></span>
               <span v-else class="addr-row">
                 <span class="mini-ic pin" aria-hidden="true">
-                  <!-- pin -->
                   <svg viewBox="0 0 24 24" fill="none">
                     <path d="M12 21s7-4.4 7-11a7 7 0 1 0-14 0c0 6.6 7 11 7 11Z"
                           stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
@@ -238,6 +240,7 @@ const ratingText = computed(() => (master.value?.rating ? String(master.value.ra
         :loads="loads"
         :loading="loadingMonth"
         :error="error"
+        :minDate="todayKey"  
         @prev="prevMonth"
         @next="nextMonth"
         @retry="loadMonth"
@@ -247,6 +250,7 @@ const ratingText = computed(() => (master.value?.rating ? String(master.value.ra
 </template>
 
 <style scoped>
+/* твой стиль без изменений */
 .client-master-page {
   position: relative;
   width: 100%;
@@ -284,9 +288,7 @@ const ratingText = computed(() => (master.value?.rating ? String(master.value.ra
     inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 
-.topbar-text {
-  min-width: 0;
-}
+.topbar-text { min-width: 0; }
 
 .topbar-title {
   display: flex;
@@ -387,14 +389,9 @@ const ratingText = computed(() => (master.value?.rating ? String(master.value.ra
   transform: translateY(-1px);
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.10);
 }
-.icon-btn:active {
-  transform: translateY(0);
-}
+.icon-btn:active { transform: translateY(0); }
 
-.btn-ic {
-  width: 18px;
-  height: 18px;
-}
+.btn-ic { width: 18px; height: 18px; }
 
 .badge {
   display: inline-flex;
@@ -412,17 +409,13 @@ const ratingText = computed(() => (master.value?.rating ? String(master.value.ra
   border: 1px solid rgba(15, 23, 42, 0.08);
 }
 
-/* Mini icons inline */
 .mini-ic {
   width: 16px;
   height: 16px;
   display: inline-flex;
   color: rgba(15, 23, 42, 0.70);
 }
-.mini-ic svg {
-  width: 16px;
-  height: 16px;
-}
+.mini-ic svg { width: 16px; height: 16px; }
 .mini-ic.sub { color: rgba(15, 23, 42, 0.55); }
 .mini-ic.brand { color: rgba(15, 23, 42, 0.70); margin-right: 8px; }
 .mini-ic.pin { color: rgba(15, 23, 42, 0.55); }

@@ -9,6 +9,10 @@ const props = defineProps<{
   loads?: Record<string, DayLoad>
   loading?: boolean
   error?: string | null
+
+  // ✅ NEW: минимально допустимая дата (например todayKey).
+  // Если передана — все даты меньше будут disabled.
+  minDate?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -46,21 +50,27 @@ const daysGrid = computed(() => {
 
   const cells: Array<{ type: "empty" } | { type: "day"; day: number; key: string }> = []
   for (let i = 0; i < offset; i++) cells.push({ type: "empty" })
-
   for (let day = 1; day <= daysInMonth; day++) {
     cells.push({ type: "day", day, key: ymd(props.year, props.month, day) })
   }
   return cells
 })
 
-const weekdays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
-const weekdaysShort = ["П", "В", "С", "Ч", "П", "С", "В"]
-
 function dayLoad(dateKey: string) {
   return props.loads?.[dateKey]
 }
 
+function isPastByMinDate(dateKey: string) {
+  if (!props.minDate) return false
+  // YYYY-MM-DD можно сравнивать строками
+  return dateKey < props.minDate
+}
+
 function isDisabled(dateKey: string) {
+  // 1) дни раньше minDate (если задано)
+  if (isPastByMinDate(dateKey)) return true
+
+  // 2) если есть load и total=0 — disabled
   const load = dayLoad(dateKey)
   return !!load && load.total === 0
 }
@@ -74,14 +84,14 @@ function pickDate(dateKey: string) {
   emit("select", dateKey)
 }
 
-function loadBarWidth(dateKey: string) {
-  const load = dayLoad(dateKey)
-  const percent = load?.loadPercent ?? 0
-  return `${percent}%`
+function clampPercent(n: number) {
+  if (!Number.isFinite(n)) return 0
+  return Math.max(0, Math.min(100, n))
 }
 
-function freeCount(dateKey: string) {
-  return dayLoad(dateKey)?.free ?? 0
+function ringPercent(dateKey: string) {
+  const load = dayLoad(dateKey)
+  return clampPercent(load?.loadPercent ?? 0)
 }
 
 function isSelected(dateKey: string) {
@@ -91,13 +101,24 @@ function isSelected(dateKey: string) {
 function isToday(dateKey: string) {
   return todayKey.value === dateKey
 }
+
+function isPast(dateKey: string) {
+  // purely визуально (для класса)
+  return isPastByMinDate(dateKey)
+}
 </script>
 
 <template>
   <div class="calendar-card">
     <!-- Header -->
     <div class="cal-header">
-      <button class="icon-btn" type="button" @click="$emit('prev')" aria-label="Предыдущий месяц" title="Предыдущий месяц">
+      <button
+        class="icon-btn"
+        type="button"
+        @click="$emit('prev')"
+        aria-label="Предыдущий месяц"
+        title="Предыдущий месяц"
+      >
         ←
       </button>
 
@@ -110,7 +131,13 @@ function isToday(dateKey: string) {
         </div>
       </div>
 
-      <button class="icon-btn" type="button" @click="$emit('next')" aria-label="Следующий месяц" title="Следующий месяц">
+      <button
+        class="icon-btn"
+        type="button"
+        @click="$emit('next')"
+        aria-label="Следующий месяц"
+        title="Следующий месяц"
+      >
         →
       </button>
     </div>
@@ -130,7 +157,9 @@ function isToday(dateKey: string) {
     <!-- Loading skeleton -->
     <div v-else-if="loading" class="skeleton-grid">
       <div class="weekdays">
-        <div class="wd" v-for="(w, i) in weekdays" :key="i">{{ w }}</div>
+        <div class="wd">Пн</div><div class="wd">Вт</div><div class="wd">Ср</div>
+        <div class="wd">Чт</div><div class="wd">Пт</div><div class="wd">Сб</div>
+        <div class="wd">Вс</div>
       </div>
 
       <div class="grid">
@@ -141,79 +170,59 @@ function isToday(dateKey: string) {
     <!-- Calendar -->
     <div v-else class="calendar-body">
       <div class="weekdays">
-        <div class="wd full" v-for="(w, i) in weekdays" :key="'f'+i">{{ w }}</div>
-        <div class="wd short" v-for="(w, i) in weekdaysShort" :key="'s'+i">{{ w }}</div>
+        <div class="wd">Пн</div><div class="wd">Вт</div><div class="wd">Ср</div>
+        <div class="wd">Чт</div><div class="wd">Пт</div><div class="wd">Сб</div>
+        <div class="wd">Вс</div>
       </div>
 
       <div class="grid">
-        <div v-for="(cell, idx) in daysGrid" :key="idx" class="grid-item">
+        <div v-for="(cell, idx) in daysGrid" :key="idx" class="cell-wrap">
           <div v-if="cell.type === 'empty'" class="cell-empty"></div>
 
           <button
             v-else
             type="button"
-            class="cell"
+            class="day"
             :class="{
               selected: isSelected(cell.key),
               today: isToday(cell.key),
               disabled: isDisabled(cell.key),
+              past: isPast(cell.key),
             }"
             :disabled="isDisabled(cell.key)"
             @click="pickDate(cell.key)"
+            :style="{ '--p': String(ringPercent(cell.key)) }"
           >
-            <div class="cell-top">
-              <div class="cell-day">{{ cell.day }}</div>
-              <div class="cell-free" v-if="!isDisabled(cell.key)">
-                {{ freeCount(cell.key) }}
-              </div>
-            </div>
-
-            <div class="cell-bar">
-              <div class="cell-bar-fill" :style="{ width: loadBarWidth(cell.key) }"></div>
+            <div class="day-inner">
+              <div class="day-num">{{ cell.day }}</div>
             </div>
           </button>
         </div>
       </div>
 
       <div class="legend">
-        <span class="legend-dot"></span>
-        <span class="legend-text">цифра — свободные</span>
-        <span class="legend-sep">•</span>
-        <span class="legend-text">полоска — занятость</span>
+        <span class="legend-ring"></span>
+        <span>кольцо — занятость (0–100%)</span>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* ✅ главное: чтобы padding не раздувал ширину и ничего не толкало сетку вправо */
-.calendar-card,
-.calendar-card * {
-  box-sizing: border-box;
-}
-
 .calendar-card {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: clip; /* можно заменить на hidden если clip не нравится */
   padding: 14px;
   border-radius: 18px;
-
   background: rgba(255, 255, 255, 0.78);
   border: 1px solid rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-
   box-shadow:
     0 12px 34px rgba(0, 0, 0, 0.10),
     inset 0 1px 0 rgba(255, 255, 255, 0.55);
-}
-
-.calendar-body,
-.skeleton-grid {
+  box-sizing: border-box;
   width: 100%;
   max-width: 100%;
-  overflow-x: clip;
+  overflow: hidden;
 }
 
 /* Header */
@@ -271,14 +280,11 @@ function isToday(dateKey: string) {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-
   padding: 7px 10px;
   border-radius: 999px;
-
   font-size: 12px;
   font-weight: 900;
   color: #0f172a;
-
   background: rgba(15, 23, 42, 0.06);
   border: 1px solid rgba(15, 23, 42, 0.08);
 }
@@ -333,11 +339,9 @@ function isToday(dateKey: string) {
   border-radius: 14px;
   border: none;
   cursor: pointer;
-
   font-size: 13px;
   font-weight: 900;
   color: #fff;
-
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   box-shadow: 0 10px 20px rgba(102, 126, 234, 0.28);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
@@ -352,10 +356,9 @@ function isToday(dateKey: string) {
 
 /* Weekdays */
 .weekdays {
-  width: 100%;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 8px;
+  gap: var(--gap);
   margin-top: 10px;
 }
 .wd {
@@ -364,106 +367,111 @@ function isToday(dateKey: string) {
   font-weight: 800;
   color: rgba(15, 23, 42, 0.55);
 }
-.wd.short { display: none; }
 
-/* ✅ Grid: minmax(0,1fr) + grid item min-width:0 = НЕ будет вылезать */
+/* Responsive sizing */
+.calendar-body {
+  --gap: 8px;
+}
+
+/* Grid */
 .grid {
-  width: 100%;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 8px;
+  gap: var(--gap);
   margin-top: 8px;
+  width: 100%;
+  max-width: 100%;
 }
-
-.grid-item {
-  min-width: 0; /* ✅ критично */
-}
+.cell-wrap { min-width: 0; }
 
 .cell-empty {
-  height: 56px;
+  aspect-ratio: 1 / 1;
+  width: 100%;
 }
 
-/* ✅ тоже критично: min-width:0 */
-.cell {
-  min-width: 0;
-  height: 56px;
+/* Day button */
+.day {
+  --p: 0;
   width: 100%;
-  border-radius: 16px;
-  border: 1px solid rgba(15, 23, 42, 0.10);
-  background: rgba(255, 255, 255, 0.55);
+  aspect-ratio: 1 / 1;
+  border: 0;
+  padding: 0;
   cursor: pointer;
+  border-radius: 999px;
   position: relative;
   overflow: hidden;
-  padding: 10px 10px 8px;
-  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  background: transparent;
+  transition: transform 0.12s ease, filter 0.12s ease;
 }
+.day:hover { transform: translateY(-1px); }
+.day:active { transform: translateY(0); }
 
-.cell:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.10);
-  border-color: rgba(15, 23, 42, 0.18);
-}
-
-.cell:active {
-  transform: translateY(0);
-}
-
-.cell.selected {
-  border-color: rgba(15, 23, 42, 0.55);
-  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.12);
-}
-
-.cell.today:not(.selected) {
-  border-color: rgba(34, 197, 94, 0.35);
-}
-
-.cell.disabled {
+.day.disabled {
   cursor: not-allowed;
   opacity: 0.45;
   transform: none !important;
-  box-shadow: none !important;
 }
 
-.cell-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  margin-bottom: 15px;
+/* Optional: чуть сильнее подсветим прошлые дни как "неактивные" */
+.day.past:not(.selected) .day-inner {
+  filter: grayscale(0.25);
 }
 
-.cell-day {
+/* Ring */
+.day::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background:
+    conic-gradient(
+      rgba(15, 23, 42, 0.85) calc(var(--p) * 1%),
+      rgba(15, 23, 42, 0.10) 0
+    );
+  -webkit-mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 6px),
+    #000 calc(100% - 6px)
+  );
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 6px),
+    #000 calc(100% - 6px)
+  );
+}
+
+.day.disabled::before {
+  background:
+    conic-gradient(
+      rgba(15, 23, 42, 0.18) calc(var(--p) * 1%),
+      rgba(15, 23, 42, 0.08) 0
+    );
+}
+
+.day-inner {
+  position: absolute;
+  inset: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.day.today:not(.selected) .day-inner { border-color: rgba(34, 197, 94, 0.35); }
+
+.day.selected .day-inner {
+  border-color: rgba(15, 23, 42, 0.55);
+  box-shadow:
+    0 10px 20px rgba(0, 0, 0, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.day-num {
   font-size: 13px;
   font-weight: 900;
   color: #0f172a;
-}
-
-.cell-free {
-  flex: 0 0 auto;
-  font-size: 11px;
-  font-weight: 900;
-  color: rgba(15, 23, 42, 0.55);
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.06);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  white-space: nowrap;
-}
-
-.cell-bar {
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 8px;
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.08);
-  overflow: hidden;
-}
-.cell-bar-fill {
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.85);
 }
 
 /* Legend */
@@ -478,69 +486,46 @@ function isToday(dateKey: string) {
   flex-wrap: wrap;
   justify-content: center;
 }
-.legend-dot {
-  width: 10px;
-  height: 10px;
+.legend-ring {
+  width: 14px;
+  height: 14px;
   border-radius: 999px;
-  background: #22c55e;
-  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
+  background: conic-gradient(rgba(15, 23, 42, 0.85) 60%, rgba(15, 23, 42, 0.10) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
 }
-.legend-sep { opacity: 0.6; }
-.legend-text { white-space: nowrap; }
 
 /* Skeleton */
-.skeleton-grid .cell-skeleton {
-  height: 56px;
-  border-radius: 16px;
+.skeleton-grid { --gap: 8px; }
+.skeleton-grid .weekdays { gap: var(--gap); }
+.skeleton-grid .grid { gap: var(--gap); }
+
+.cell-skeleton {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 999px;
   background: rgba(15, 23, 42, 0.08);
   animation: pulse 1.2s ease-in-out infinite;
 }
-
 @keyframes pulse {
   0%, 100% { opacity: 0.55; }
   50% { opacity: 1; }
 }
 
-/* ✅ Mobile (<= 375px) */
-@media (max-width: 375px) {
-  .calendar-card { padding: 12px; border-radius: 16px; }
-
-  .icon-btn { width: 36px; height: 36px; border-radius: 12px; }
-
-  .grid, .weekdays { gap: 6px; }
-
-  .cell-empty { height: 50px; }
-  .cell { height: 50px; border-radius: 14px; padding: 8px 8px 7px; }
-
-  .cell-top { margin-bottom: 12px; }
-  .cell-day { font-size: 12px; }
-
-  .cell-free {
-    width: 20px;
-    height: 20px;
-    padding: 0;
-    border-radius: 999px;
-    display: grid;
-    place-items: center;
-    font-size: 10px;
-    font-weight: 900;
+@media (max-width: 420px) {
+  .calendar-body { --gap: 6px; }
+  .day-inner { inset: 5px; }
+  .day::before {
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 5px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 5px));
   }
-
-  .cell-bar { left: 8px; right: 8px; bottom: 7px; height: 5px; }
-  .cell-bar-fill { height: 5px; }
-
-  .wd.full { display: none; }
-  .wd.short { display: block; font-size: 10px; }
-
-  .legend { font-size: 11px; gap: 6px; }
-  .legend-text { white-space: normal; }
+  .day-num { font-size: 12px; }
 }
 
-/* ✅ Extra small (<= 340px) */
-@media (max-width: 340px) {
-  .grid, .weekdays { gap: 5px; }
-  .cell { height: 46px; border-radius: 12px; padding: 7px 7px 6px; }
-  .cell-empty { height: 46px; }
-  .cell-free { width: 18px; height: 18px; font-size: 9px; }
+@media (max-width: 360px) {
+  .calendar-body { --gap: 5px; }
+  .icon-btn { width: 36px; height: 36px; border-radius: 12px; }
+  .day-inner { inset: 4px; }
+  .day-num { font-size: 11px; }
 }
 </style>
